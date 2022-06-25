@@ -7,7 +7,6 @@ import {
   HttpStatus,
   Param,
   Post,
-  Request,
   UseGuards,
 } from '@nestjs/common';
 
@@ -36,11 +35,5 @@ export class UsersController {
   @Header('Cache-Control', 'none')
   create(@Body() createUserDto: CreateUserDto): Promise<User | undefined> {
     return this.usersService.create(createUserDto);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  getProfile(@Request() req) {
-    return req.user;
   }
 }

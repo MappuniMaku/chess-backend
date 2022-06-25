@@ -18,10 +18,15 @@ export class UsersService {
   }
 
   async findOne(username: string, shouldReturnPassword = false): Promise<User> {
+    const projection = {
+      __v: 0,
+    };
     return this.userModel
       .findOne(
         { username },
-        { _id: 0, __v: 0, password: shouldReturnPassword ? 1 : 0 },
+        shouldReturnPassword
+          ? projection
+          : { ...projection, password: 0, _id: 0 },
       )
       .exec();
   }
