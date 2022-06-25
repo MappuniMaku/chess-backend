@@ -8,7 +8,7 @@ async function bootstrap() {
       origin:
         process.env.NODE_ENV === 'development'
           ? 'http://localhost:3000'
-          : 'https://chess-backend-nest.herokuapp.com',
+          : 'https://chess-c3e21.web.app',
     },
   });
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
