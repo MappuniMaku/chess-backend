@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import { User, UserDocument } from './schemas';
-import { CreateUserDto } from './dto';
+import { CreateUserDto, UsersFiltersDto } from './dto';
 import { hashPassword } from '../auth/helpers';
 
 @Injectable()
@@ -13,22 +13,44 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  async getAll(): Promise<User[]> {
-    return this.userModel.find({}, { _id: 0, __v: 0, password: 0 });
+  async getAll(query?: UsersFiltersDto): Promise<User[]> {
+    const { username, sort } = query;
+
+    const sortObject = {};
+    switch (sort) {
+      case 'username_asc':
+        sortObject['username'] = 1;
+        break;
+      case 'username_desc':
+        sortObject['username'] = -1;
+        break;
+      case 'rating_asc':
+        sortObject['rating'] = 1;
+        break;
+      case 'rating_desc':
+        sortObject['rating'] = -1;
+        break;
+    }
+
+    return this.userModel.find(
+      { username: { $regex: username ?? '' } },
+      { _id: 0, __v: 0, password: 0 },
+      {
+        sort: sortObject,
+      },
+    );
   }
 
   async findOne(username: string, shouldReturnPassword = false): Promise<User> {
     const projection = {
       __v: 0,
     };
-    return this.userModel
-      .findOne(
-        { username },
-        shouldReturnPassword
-          ? projection
-          : { ...projection, password: 0, _id: 0 },
-      )
-      .exec();
+    return this.userModel.findOne(
+      { username },
+      shouldReturnPassword
+        ? projection
+        : { ...projection, password: 0, _id: 0 },
+    );
   }
 
   async create(userDto: CreateUserDto): Promise<User> {
