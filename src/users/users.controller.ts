@@ -15,13 +15,14 @@ import { UsersService } from './users.service';
 import { CreateUserDto, UsersFiltersDto } from './dto';
 import { User } from './schemas';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PaginatedListDto } from '../common/dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  getAll(@Query() query?: UsersFiltersDto): Promise<User[]> {
+  getAll(@Query() query: UsersFiltersDto): Promise<PaginatedListDto<User>> {
     return this.usersService.getAll(query);
   }
 

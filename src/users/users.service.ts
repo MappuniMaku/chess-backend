@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas';
 import { CreateUserDto, UsersFiltersDto } from './dto';
 import { hashPassword } from '../auth/helpers';
+import { PaginatedListDto } from '../common/dto';
 
 @Injectable()
 export class UsersService {
@@ -13,8 +14,11 @@ export class UsersService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
-  async getAll(query?: UsersFiltersDto): Promise<User[]> {
-    const { username, sort } = query;
+  async getAll(query: UsersFiltersDto): Promise<PaginatedListDto<User>> {
+    const { username, sort, page, pageSize } = query;
+
+    const numberPage = Number(page ?? 1);
+    const numberPageSize = Number(pageSize ?? 30);
 
     const sortObject = {};
     switch (sort) {
@@ -32,13 +36,26 @@ export class UsersService {
         break;
     }
 
-    return this.userModel.find(
+    const users = await this.userModel.find(
       { username: { $regex: username ?? '' } },
       { _id: 0, __v: 0, password: 0 },
       {
+        limit: numberPageSize,
+        skip: numberPageSize * (numberPage - 1),
         sort: sortObject,
       },
     );
+    const totalItems = await this.userModel.countDocuments({
+      username: { $regex: username ?? '' },
+    });
+
+    return {
+      page: numberPage,
+      pageSize: numberPageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / numberPageSize),
+      items: users,
+    };
   }
 
   async findOne(username: string, shouldReturnPassword = false): Promise<User> {
