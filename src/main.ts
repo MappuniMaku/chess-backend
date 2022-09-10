@@ -16,7 +16,6 @@ async function bootstrap() {
   });
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
       exceptionFactory: (validationErrors = []) => {
         return new ValidationError(
           validationErrors.reduce((acc, err) => {
