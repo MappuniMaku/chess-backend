@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 
 import { AppModule } from './app.module';
+import { ValidationError } from './common/validation-error';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -11,6 +13,23 @@ async function bootstrap() {
           : 'https://chess-c3e21.web.app',
     },
   });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      exceptionFactory: (validationErrors = []) => {
+        return new ValidationError(
+          validationErrors.reduce((acc, err) => {
+            const { property, constraints } = err;
+            const failReasons = Object.keys(constraints);
+            return {
+              ...acc,
+              [property]: failReasons[failReasons.length - 1],
+            };
+          }, {}),
+        );
+      },
+    }),
+  );
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
 bootstrap();

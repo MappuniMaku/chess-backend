@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -6,6 +6,7 @@ import { User, UserDocument } from './schemas';
 import { CreateUserDto, UsersFiltersDto } from './dto';
 import { hashPassword } from '../auth/helpers';
 import { PaginatedListDto } from '../common/dto';
+import { ValidationError } from '../common/validation-error';
 
 @Injectable()
 export class UsersService {
@@ -73,10 +74,7 @@ export class UsersService {
   async create(userDto: CreateUserDto): Promise<User> {
     const { username, password, rating } = userDto;
     if ((await this.findOne(username)) !== null) {
-      throw new HttpException(
-        'User with this username already exists',
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new ValidationError({ username: 'isNotUnique' });
     }
     const hashedPassword = await hashPassword(password);
     const newUser = new this.userModel({
