@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { ValidationError } from './common/validation-error';
@@ -30,6 +31,7 @@ async function bootstrap() {
       },
     }),
   );
+  app.use(helmet());
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
 bootstrap();
