@@ -11,7 +11,7 @@ import {
   LOCALHOST_FRONTEND_ADDRESS,
   PRODUCTION_FRONTEND_ADDRESS,
 } from '../constants';
-import { EVENTS } from './constants';
+import { WsEvents } from './constants';
 import { User } from '../users/schemas';
 
 @WebSocketGateway({
@@ -22,86 +22,86 @@ import { User } from '../users/schemas';
       : PRODUCTION_FRONTEND_ADDRESS,
 })
 export class EventsGateway {
-  connectedUsers: { socket: Socket; user?: User }[] = [];
+  connectedClients: { socket: Socket; user?: User }[] = [];
 
   getAuthenticatedUsers(): User[] {
-    return this.connectedUsers
-      .map((u) => u.user)
+    return this.connectedClients
+      .map(({ user }) => user)
       .filter((u) => u !== undefined);
   }
 
-  sendMessageToUser = (username: string, event: string, data: unknown) => {
-    const user = this.connectedUsers.find((u) => u.user.username === username);
-    if (user === undefined) {
-      throw new Error(
-        `sendMessageToUser(): User with username ${username} not found`,
-      );
-    }
-    user.socket.emit(event, data);
+  sendMessageToClient = (socketId: string, event: WsEvents, data: unknown) => {
+    const targetUser = this.connectedClients.find(
+      ({ socket }) => socket.id === socketId,
+    );
+    targetUser.socket.emit(event, data);
   };
 
-  sendMessageToAllUsers(event: string, data: unknown): void {
-    this.connectedUsers.forEach(({ socket }) => {
+  sendMessageToAllClients(event: WsEvents, data: unknown): void {
+    this.connectedClients.forEach(({ socket }) => {
       socket.emit(event, data);
     });
   }
 
-  sendMessageToAllUsersExceptOne(
-    excludedUsername: string,
-    event: string,
+  sendMessageToAllClientsExceptOne(
+    excludedSocketId: string,
+    event: WsEvents,
     data: unknown,
   ): void {
-    this.connectedUsers.forEach(({ socket, user }) => {
-      if (user?.username !== excludedUsername) {
+    this.connectedClients.forEach(({ socket }) => {
+      if (socket.id !== excludedSocketId) {
         socket.emit(event, data);
       }
     });
   }
 
-  @SubscribeMessage(EVENTS.JOIN)
-  userJoin(
+  @SubscribeMessage(WsEvents.CONNECT)
+  handleConnection(@ConnectedSocket() client: Socket): void {
+    this.connectedClients.push({ socket: client });
+  }
+
+  @SubscribeMessage(WsEvents.JOIN)
+  userJoined(
     @MessageBody('user') user: User | undefined,
     @ConnectedSocket() client: Socket,
   ): WsResponse<User[]> {
-    const { username } = user ?? {};
-    const newConnectedUser = { socket: client, user };
-    const userIndex = this.connectedUsers.findIndex(
-      (u) => u.socket?.id === client.id,
+    const newUser = { socket: client, user };
+    const clientIndex = this.connectedClients.findIndex(
+      ({ socket }) => socket?.id === client.id,
     );
-    const isUserAlreadyConnected = userIndex !== -1;
+    const isUserAlreadyConnected = clientIndex !== -1;
     if (isUserAlreadyConnected) {
-      this.connectedUsers[userIndex] = newConnectedUser;
+      this.connectedClients[clientIndex] = newUser;
     } else {
-      this.connectedUsers.push(newConnectedUser);
+      this.connectedClients.push(newUser);
     }
     const authenticatedUsers = this.getAuthenticatedUsers();
-    if (username !== undefined) {
-      this.sendMessageToAllUsersExceptOne(
-        username,
-        EVENTS.UPDATE_LOBBY,
+    if (user !== undefined) {
+      this.sendMessageToAllClientsExceptOne(
+        client.id,
+        WsEvents.UPDATE_LOBBY,
         authenticatedUsers,
       );
     }
     return {
-      event: EVENTS.UPDATE_LOBBY,
+      event: WsEvents.UPDATE_LOBBY,
       data: authenticatedUsers,
     };
   }
 
-  @SubscribeMessage('disconnect')
+  @SubscribeMessage(WsEvents.DISCONNECT)
   handleDisconnect(@ConnectedSocket() client: Socket): void {
-    const targetEntry = this.connectedUsers.find(
-      (u) => u.socket.id === client.id,
+    const targetClient = this.connectedClients.find(
+      ({ socket }) => socket.id === client.id,
     );
-    const { username } = targetEntry?.user ?? {};
-    this.connectedUsers = this.connectedUsers.filter(
+    this.connectedClients = this.connectedClients.filter(
       ({ socket }) => socket.id !== client.id,
     );
-    if (username === undefined) {
+    if (targetClient?.user === undefined) {
       return;
     }
-    this.sendMessageToAllUsers(
-      EVENTS.UPDATE_LOBBY,
+    this.sendMessageToAllClients(
+      WsEvents.UPDATE_LOBBY,
       this.getAuthenticatedUsers(),
     );
   }
