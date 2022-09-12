@@ -3,7 +3,6 @@ import {
   MessageBody,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer,
   WsResponse,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
@@ -23,8 +22,13 @@ import { User } from '../users/schemas';
       : PRODUCTION_FRONTEND_ADDRESS,
 })
 export class EventsGateway {
-  @WebSocketServer() private server;
-  connectedUsers: { socket: Socket; user: User }[] = [];
+  connectedUsers: { socket: Socket; user?: User }[] = [];
+
+  getAuthenticatedUsers(): User[] {
+    return this.connectedUsers
+      .map((u) => u.user)
+      .filter((u) => u !== undefined);
+  }
 
   sendMessageToUser = (username: string, event: string, data: unknown) => {
     const user = this.connectedUsers.find((u) => u.user.username === username);
@@ -48,7 +52,7 @@ export class EventsGateway {
     data: unknown,
   ): void {
     this.connectedUsers.forEach(({ socket, user }) => {
-      if (user.username !== excludedUsername) {
+      if (user?.username !== excludedUsername) {
         socket.emit(event, data);
       }
     });
@@ -60,32 +64,45 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
   ): WsResponse<User[]> {
     const { username } = user ?? {};
-    if (
-      username !== undefined &&
-      this.connectedUsers.find((u) => u.user.username === username) ===
-        undefined
-    ) {
-      this.connectedUsers.push({ socket: client, user });
+    const newConnectedUser = { socket: client, user };
+    const userIndex = this.connectedUsers.findIndex(
+      (u) => u.socket?.id === client.id,
+    );
+    const isUserAlreadyConnected = userIndex !== -1;
+    if (isUserAlreadyConnected) {
+      this.connectedUsers[userIndex] = newConnectedUser;
+    } else {
+      this.connectedUsers.push(newConnectedUser);
+    }
+    const authenticatedUsers = this.getAuthenticatedUsers();
+    if (username !== undefined) {
       this.sendMessageToAllUsersExceptOne(
         username,
         EVENTS.UPDATE_LOBBY,
-        this.connectedUsers.map((u) => u.user),
+        authenticatedUsers,
       );
     }
     return {
       event: EVENTS.UPDATE_LOBBY,
-      data: this.connectedUsers.map((u) => u.user),
+      data: authenticatedUsers,
     };
   }
 
   @SubscribeMessage('disconnect')
   handleDisconnect(@ConnectedSocket() client: Socket): void {
+    const targetEntry = this.connectedUsers.find(
+      (u) => u.socket.id === client.id,
+    );
+    const { username } = targetEntry?.user ?? {};
     this.connectedUsers = this.connectedUsers.filter(
       ({ socket }) => socket.id !== client.id,
     );
+    if (username === undefined) {
+      return;
+    }
     this.sendMessageToAllUsers(
       EVENTS.UPDATE_LOBBY,
-      this.connectedUsers.map((u) => u.user),
+      this.getAuthenticatedUsers(),
     );
   }
 }
