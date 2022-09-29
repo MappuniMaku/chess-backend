@@ -24,7 +24,7 @@ async function bootstrap() {
         return new ValidationError(
           validationErrors.reduce((acc, err) => {
             const { property, constraints } = err;
-            const failReasons = Object.keys(constraints);
+            const failReasons = Object.keys(constraints ?? {});
             return {
               ...acc,
               [property]: failReasons[failReasons.length - 1],

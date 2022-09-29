@@ -21,7 +21,7 @@ export class UsersService {
     const numberPage = Number(page ?? 1);
     const numberPageSize = Number(pageSize ?? 30);
 
-    const sortObject = {};
+    const sortObject: Record<string, number> = {};
     switch (sort) {
       case 'username_asc':
         sortObject['username'] = 1;
@@ -59,7 +59,10 @@ export class UsersService {
     };
   }
 
-  async findOne(username: string, shouldReturnPassword = false): Promise<User> {
+  async findOne(
+    username: string,
+    shouldReturnPassword = false,
+  ): Promise<User | null> {
     const projection = {
       __v: 0,
     };

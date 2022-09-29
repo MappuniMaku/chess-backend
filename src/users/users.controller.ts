@@ -28,7 +28,7 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':username')
-  findOne(@Param('username') username: string): Promise<User> {
+  findOne(@Param('username') username: string): Promise<User | null> {
     return this.usersService.findOne(username);
   }
 

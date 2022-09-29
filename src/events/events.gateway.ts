@@ -27,14 +27,14 @@ export class EventsGateway {
   getAuthenticatedUsers(): User[] {
     return this.connectedClients
       .map(({ user }) => user)
-      .filter((u) => u !== undefined);
+      .filter((u) => u !== undefined) as User[];
   }
 
   sendMessageToClient = (socketId: string, event: WsEvents, data: unknown) => {
     const targetUser = this.connectedClients.find(
       ({ socket }) => socket.id === socketId,
     );
-    targetUser.socket.emit(event, data);
+    targetUser?.socket.emit(event, data);
   };
 
   sendMessageToAllClients(event: WsEvents, data: unknown): void {
@@ -67,7 +67,7 @@ export class EventsGateway {
   ): WsResponse<User[]> {
     const newUser = { socket: client, user };
     const clientIndex = this.connectedClients.findIndex(
-      ({ socket }) => socket?.id === client.id,
+      ({ socket }) => socket.id === client.id,
     );
     const isUserAlreadyConnected = clientIndex !== -1;
     if (isUserAlreadyConnected) {
