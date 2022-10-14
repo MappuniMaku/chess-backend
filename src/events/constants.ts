@@ -1,6 +1,8 @@
 export enum WsEvents {
-  CONNECT = 'connect',
-  JOIN = 'join',
-  UPDATE_LOBBY = 'update-lobby',
-  DISCONNECT = 'disconnect',
+  Connect = 'connect',
+  Join = 'join',
+  UpdateLobby = 'update-lobby',
+  Disconnect = 'disconnect',
+  StartSearching = 'start-searching',
+  CancelSearching = 'cancel-searching',
 }
