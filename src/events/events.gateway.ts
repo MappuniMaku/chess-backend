@@ -115,7 +115,9 @@ export class EventsGateway {
   }
 
   @SubscribeMessage(WsEvents.StartSearching)
-  userStartedSearching(@ConnectedSocket() client: Socket): void {
+  userStartedSearching(
+    @ConnectedSocket() client: Socket,
+  ): WsResponse<{ searchingForGameUsers: User[] }> | undefined {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     const { user } = targetClient ?? {};
     if (
@@ -125,13 +127,21 @@ export class EventsGateway {
       return;
     }
     this.playersSearchingForGame.push(user);
-    this.sendMessageToAllClients(WsEvents.UpdateLobby, {
+    this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
       searchingForGameUsers: this.playersSearchingForGame,
     });
+    return {
+      event: WsEvents.UpdateLobby,
+      data: {
+        searchingForGameUsers: this.playersSearchingForGame,
+      },
+    };
   }
 
   @SubscribeMessage(WsEvents.CancelSearching)
-  userCancelledSearching(@ConnectedSocket() client: Socket): void {
+  userCancelledSearching(
+    @ConnectedSocket() client: Socket,
+  ): WsResponse<{ searchingForGameUsers: User[] }> | undefined {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     const { user } = targetClient ?? {};
     if (user === undefined) {
@@ -140,8 +150,14 @@ export class EventsGateway {
     this.playersSearchingForGame = this.playersSearchingForGame.filter(
       (u) => u.username !== user.username,
     );
-    this.sendMessageToAllClients(WsEvents.UpdateLobby, {
+    this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
       searchingForGameUsers: this.playersSearchingForGame,
     });
+    return {
+      event: WsEvents.UpdateLobby,
+      data: {
+        searchingForGameUsers: this.playersSearchingForGame,
+      },
+    };
   }
 }
