@@ -11,9 +11,10 @@ import {
   LOCALHOST_FRONTEND_ADDRESS,
   PRODUCTION_FRONTEND_ADDRESS,
 } from '../constants';
-import { WsEvents } from './constants';
+import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
+import { Game } from '../game';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -25,6 +26,7 @@ import { IConnectedClient, IWsEventData } from './types';
 export class EventsGateway {
   connectedClients: IConnectedClient[] = [];
   playersSearchingForGame: User[] = [];
+  activeGames: Game[] = [];
 
   getAuthenticatedUsers(): User[] {
     return this.connectedClients
@@ -36,11 +38,20 @@ export class EventsGateway {
     return this.connectedClients.find(({ socket }) => socket.id === socketId);
   }
 
+  getConnectedClientByUsername(username: string): IConnectedClient | undefined {
+    return this.connectedClients.find(
+      ({ user }) => user?.username === username,
+    );
+  }
+
   sendMessageToClient = (
-    socketId: string,
+    socketId: string | undefined,
     event: WsEvents,
     data: IWsEventData,
-  ) => {
+  ): void => {
+    if (socketId === undefined) {
+      return;
+    }
     const targetUser = this.connectedClients.find(
       ({ socket }) => socket.id === socketId,
     );
@@ -63,6 +74,14 @@ export class EventsGateway {
         socket.emit(event, data);
       }
     });
+  }
+
+  findAppropriateOpponent(user: User): User | undefined {
+    return this.playersSearchingForGame.find(
+      (u) =>
+        u.username !== user.username &&
+        Math.abs(u.rating - user.rating) <= MAX_OPPONENTS_RATING_DIFFERENCE,
+    );
   }
 
   @SubscribeMessage(WsEvents.Connect)
@@ -117,7 +136,7 @@ export class EventsGateway {
   @SubscribeMessage(WsEvents.StartSearching)
   userStartedSearching(
     @ConnectedSocket() client: Socket,
-  ): WsResponse<{ searchingForGameUsers: User[] }> | undefined {
+  ): WsResponse<{ searchingForGameUsers?: User[]; game?: Game }> | undefined {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     const { user } = targetClient ?? {};
     if (
@@ -126,14 +145,37 @@ export class EventsGateway {
     ) {
       return;
     }
-    this.playersSearchingForGame.push(user);
-    this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
+
+    const opponent = this.findAppropriateOpponent(user);
+    if (opponent === undefined) {
+      this.playersSearchingForGame.push(user);
+      this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
+        searchingForGameUsers: this.playersSearchingForGame,
+      });
+      return {
+        event: WsEvents.UpdateLobby,
+        data: {
+          searchingForGameUsers: this.playersSearchingForGame,
+        },
+      };
+    }
+    this.playersSearchingForGame = this.playersSearchingForGame.filter(
+      (p) => p.username !== opponent.username,
+    );
+    const newGame = new Game({ user1: user, user2: opponent });
+    this.activeGames.push(newGame);
+
+    const opponentClient = this.getConnectedClientByUsername(opponent.username);
+    this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateLobby, {
       searchingForGameUsers: this.playersSearchingForGame,
     });
+    this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
+      game: newGame,
+    });
     return {
-      event: WsEvents.UpdateLobby,
+      event: WsEvents.UpdateGame,
       data: {
-        searchingForGameUsers: this.playersSearchingForGame,
+        game: newGame,
       },
     };
   }
@@ -148,7 +190,7 @@ export class EventsGateway {
       return;
     }
     this.playersSearchingForGame = this.playersSearchingForGame.filter(
-      (u) => u.username !== user.username,
+      (p) => p.username !== user.username,
     );
     this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
       searchingForGameUsers: this.playersSearchingForGame,
