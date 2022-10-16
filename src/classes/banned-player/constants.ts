@@ -1,1 +1,1 @@
-export const BAN_SECONDS_PER_DECLINED_GAME = 10;
+export const BAN_SECONDS_PER_DECLINED_GAME = 60;
