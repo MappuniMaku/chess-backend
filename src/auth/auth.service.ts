@@ -7,17 +7,11 @@ import { User } from '../users/schemas';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private usersService: UsersService, private jwtService: JwtService) {}
 
   async validateUser(username: string, pass: string): Promise<User | null> {
     const user = await this.usersService.findOne(username, true);
-    if (
-      user !== null &&
-      (await comparePasswords(pass, user.password as string))
-    ) {
+    if (user !== null && (await comparePasswords(pass, user.password as string))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...result } = user;
       return result;

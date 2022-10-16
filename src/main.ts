@@ -4,10 +4,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { ValidationError } from './common/validation-error';
-import {
-  LOCALHOST_FRONTEND_ADDRESS,
-  PRODUCTION_FRONTEND_ADDRESS,
-} from './constants';
+import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from './constants';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {

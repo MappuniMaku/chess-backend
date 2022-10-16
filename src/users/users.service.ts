@@ -59,18 +59,13 @@ export class UsersService {
     };
   }
 
-  async findOne(
-    username: string,
-    shouldReturnPassword = false,
-  ): Promise<User | null> {
+  async findOne(username: string, shouldReturnPassword = false): Promise<User | null> {
     const projection = {
       __v: 0,
     };
     return this.userModel.findOne(
       { username },
-      shouldReturnPassword
-        ? projection
-        : { ...projection, password: 0, _id: 0 },
+      shouldReturnPassword ? projection : { ...projection, password: 0, _id: 0 },
     );
   }
 

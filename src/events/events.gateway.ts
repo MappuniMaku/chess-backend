@@ -7,18 +7,12 @@ import {
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 
-import {
-  LOCALHOST_FRONTEND_ADDRESS,
-  PRODUCTION_FRONTEND_ADDRESS,
-} from '../constants';
+import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from '../constants';
 import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
 import { Game } from '../game';
-import {
-  isUserParticipatingInGame,
-  isUserPlayingAsWhite,
-} from '../common/helpers';
+import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -33,9 +27,7 @@ export class EventsGateway {
   activeGames: Game[] = [];
 
   getAuthenticatedUsers(): User[] {
-    return this.connectedClients
-      .map(({ user }) => user)
-      .filter((u) => u !== undefined) as User[];
+    return this.connectedClients.map(({ user }) => user).filter((u) => u !== undefined) as User[];
   }
 
   getConnectedClientBySocketId(socketId: string): IConnectedClient | undefined {
@@ -43,9 +35,7 @@ export class EventsGateway {
   }
 
   getConnectedClientByUsername(username: string): IConnectedClient | undefined {
-    return this.connectedClients.find(
-      ({ user }) => user?.username === username,
-    );
+    return this.connectedClients.find(({ user }) => user?.username === username);
   }
 
   sendMessageToClient = (
@@ -56,9 +46,7 @@ export class EventsGateway {
     if (socketId === undefined) {
       return;
     }
-    const targetUser = this.connectedClients.find(
-      ({ socket }) => socket.id === socketId,
-    );
+    const targetUser = this.connectedClients.find(({ socket }) => socket.id === socketId);
     targetUser?.socket.emit(event, data);
   };
 
@@ -99,10 +87,7 @@ export class EventsGateway {
       hasError = true;
     }
     const targetGame = this.activeGames.find((g) => g.id === gameId) as Game;
-    if (
-      targetGame === undefined ||
-      !isUserParticipatingInGame(targetGame, user)
-    ) {
+    if (targetGame === undefined || !isUserParticipatingInGame(targetGame, user)) {
       hasError = true;
     }
     return {
@@ -134,9 +119,7 @@ export class EventsGateway {
         users: authenticatedUsers,
       });
       const activeGame = this.activeGames.find(
-        (g) =>
-          g.white.user.username === user.username ||
-          g.black.user.username === user.username,
+        (g) => g.white.user.username === user.username || g.black.user.username === user.username,
       );
       if (activeGame !== undefined) {
         this.sendMessageToClient(client.id, WsEvents.UpdateGame, {
@@ -156,9 +139,7 @@ export class EventsGateway {
   @SubscribeMessage(WsEvents.Disconnect)
   handleDisconnect(@ConnectedSocket() client: Socket): void {
     const targetClient = this.getConnectedClientBySocketId(client.id);
-    this.connectedClients = this.connectedClients.filter(
-      ({ socket }) => socket.id !== client.id,
-    );
+    this.connectedClients = this.connectedClients.filter(({ socket }) => socket.id !== client.id);
     if (targetClient?.user === undefined) {
       return;
     }
@@ -242,10 +223,7 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
-    const { user, targetGame, hasError } = this.getUserAndTargetGame(
-      client.id,
-      gameId,
-    );
+    const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError) {
       return;
     }
@@ -256,9 +234,7 @@ export class EventsGateway {
     const opponent = targetGame[isUserWhite ? 'black' : 'white'];
     if (opponent.isGameAccepted) {
       targetGame.isStarted = true;
-      const opponentClient = this.getConnectedClientByUsername(
-        opponent.user.username,
-      );
+      const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
       this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
         game: targetGame,
       });
@@ -277,10 +253,7 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
-    const { user, targetGame, hasError } = this.getUserAndTargetGame(
-      client.id,
-      gameId,
-    );
+    const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError) {
       return;
     }
@@ -289,9 +262,7 @@ export class EventsGateway {
 
     const isUserWhite = isUserPlayingAsWhite(targetGame, user);
     const opponent = targetGame[isUserWhite ? 'black' : 'white'];
-    const opponentClient = this.getConnectedClientByUsername(
-      opponent.user.username,
-    );
+    const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
     this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
       game: undefined,
       isDeclinedByOpponent: true,
