@@ -1,5 +1,5 @@
 import { User } from '../users/schemas';
-import { Game } from '../game';
+import { Game } from '../classes';
 
 export const get50PercentRandomResult = (): boolean => Math.random() < 0.5;
 

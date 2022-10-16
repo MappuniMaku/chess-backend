@@ -11,8 +11,7 @@ import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from '../cons
 import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
-import { Game } from '../game';
-import { IGame } from '../game/types';
+import { BannedPlayer, Game, IBannedPlayer, IGame } from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 
 @WebSocketGateway({
@@ -26,6 +25,7 @@ export class EventsGateway {
   connectedClients: IConnectedClient[] = [];
   playersSearchingForGame: User[] = [];
   activeGames: Game[] = [];
+  playersBannedFromSearch: BannedPlayer[] = [];
 
   getAuthenticatedUsers(): User[] {
     return this.connectedClients.map(({ user }) => user).filter((u) => u !== undefined) as User[];
@@ -104,13 +104,58 @@ export class EventsGateway {
     const isGameDeclinedByWhite = !white.isGameAccepted;
     const isGameDeclinedByBlack = !black.isGameAccepted;
     [white, black].forEach((p, i) => {
-      const client = this.getConnectedClientByUsername(p.user.username);
+      const { user, isGameAccepted } = p;
+      const client = this.getConnectedClientByUsername(user.username);
       this.sendMessageToClient(client?.socket.id, WsEvents.UpdateGame, {
         game: undefined,
         isDeclinedByOpponent:
-          p.isGameAccepted && (i === 0 ? isGameDeclinedByBlack : isGameDeclinedByWhite),
+          isGameAccepted && (i === 0 ? isGameDeclinedByBlack : isGameDeclinedByWhite),
       });
+      if (!isGameAccepted) {
+        this.banUserFromSearch(user);
+      }
     });
+  }
+
+  getActivelyBannedPlayers(): IBannedPlayer[] {
+    return this.playersBannedFromSearch.filter((p) => p.isBanActive).map((p) => p.getPayloadData());
+  }
+
+  sendInfoAboutBannedUsers(): void {
+    this.sendMessageToAllClients(WsEvents.UpdateLobby, {
+      bannedPlayers: this.getActivelyBannedPlayers(),
+    });
+  }
+
+  banUserFromSearch(user: User): void {
+    const targetPlayer = this.playersBannedFromSearch.find(
+      (u) => u.user.username === user.username,
+    );
+    if (targetPlayer === undefined) {
+      this.playersBannedFromSearch.push(
+        new BannedPlayer(user, this.sendInfoAboutBannedUsers.bind(this)),
+      );
+      return;
+    }
+    targetPlayer.prolongBan();
+    this.sendInfoAboutBannedUsers();
+  }
+
+  unbanUserFromSearchIfNecessary(user: User): void {
+    const targetPlayer = this.playersBannedFromSearch.find(
+      (u) => u.user.username === user.username,
+    );
+    if (targetPlayer === undefined) {
+      return;
+    }
+    if (targetPlayer.consequentlyDeclinedGamesCount > 0) {
+      targetPlayer.reduceDeclinedGamesCount();
+      return;
+    }
+    this.playersBannedFromSearch = this.playersBannedFromSearch.filter(
+      (u) => u.user.username !== user.username,
+    );
+    this.sendInfoAboutBannedUsers();
   }
 
   @SubscribeMessage(WsEvents.Connect)
@@ -122,7 +167,7 @@ export class EventsGateway {
   userJoined(
     @MessageBody('user') user: User | undefined,
     @ConnectedSocket() client: Socket,
-  ): WsResponse<{ users: User[]; searchingForGameUsers: User[] }> {
+  ): WsResponse<{ users: User[]; searchingForGameUsers: User[]; bannedPlayers: IBannedPlayer[] }> {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     if (targetClient !== undefined) {
       targetClient.user = user;
@@ -148,6 +193,7 @@ export class EventsGateway {
       data: {
         users: authenticatedUsers,
         searchingForGameUsers: this.playersSearchingForGame,
+        bannedPlayers: this.getActivelyBannedPlayers(),
       },
     };
   }
@@ -172,7 +218,8 @@ export class EventsGateway {
     const { user } = targetClient ?? {};
     if (
       user === undefined ||
-      this.playersSearchingForGame.some((u) => u.username === user.username)
+      this.playersSearchingForGame.some((u) => u.username === user.username) ||
+      this.playersBannedFromSearch.some((p) => p.user.username === user.username && p.isBanActive)
     ) {
       return;
     }
@@ -251,6 +298,7 @@ export class EventsGateway {
       return;
     }
 
+    this.unbanUserFromSearchIfNecessary(user);
     const isUserWhite = isUserPlayingAsWhite(targetGame, user);
     const currentPlayer = targetGame[isUserWhite ? 'white' : 'black'];
     if (currentPlayer.isGameAccepted) {
@@ -287,6 +335,7 @@ export class EventsGateway {
 
     targetGame.clearIntervals();
     this.activeGames = this.activeGames.filter((g) => g.id !== targetGame.id);
+    this.banUserFromSearch(user);
 
     const isUserWhite = isUserPlayingAsWhite(targetGame, user);
     const opponent = targetGame[isUserWhite ? 'black' : 'white'];

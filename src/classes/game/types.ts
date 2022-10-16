@@ -1,4 +1,4 @@
-import { User } from '../users/schemas';
+import { User } from '../../users/schemas';
 
 export interface IPlayer {
   user: User;
