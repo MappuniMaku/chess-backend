@@ -201,7 +201,10 @@ export class EventsGateway {
   ): WsResponse<{ searchingForGameUsers: User[] }> | undefined {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     const { user } = targetClient ?? {};
-    if (user === undefined) {
+    if (
+      user === undefined ||
+      !this.playersSearchingForGame.some((u) => u.username === user.username)
+    ) {
       return;
     }
     this.playersSearchingForGame = this.playersSearchingForGame.filter(
@@ -224,12 +227,16 @@ export class EventsGateway {
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
     const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
-    if (hasError) {
+    if (hasError || targetGame.isStarted) {
       return;
     }
 
     const isUserWhite = isUserPlayingAsWhite(targetGame, user);
-    targetGame[isUserWhite ? 'white' : 'black'].isGameAccepted = true;
+    const currentPlayer = targetGame[isUserWhite ? 'white' : 'black'];
+    if (currentPlayer.isGameAccepted) {
+      return;
+    }
+    currentPlayer.isGameAccepted = true;
 
     const opponent = targetGame[isUserWhite ? 'black' : 'white'];
     if (opponent.isGameAccepted) {
@@ -254,7 +261,7 @@ export class EventsGateway {
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
     const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
-    if (hasError) {
+    if (hasError || targetGame.isStarted || !this.activeGames.some((g) => g.id === gameId)) {
       return;
     }
 
