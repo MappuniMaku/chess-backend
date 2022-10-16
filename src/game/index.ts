@@ -9,6 +9,7 @@ export class Game implements IGame {
   black: IPlayer;
   white: IPlayer;
   movesLog: IMove[];
+  isStarted: boolean;
 
   constructor({ user1, user2 }: { user1: User; user2: User }) {
     this.id = uuidv4();
@@ -22,5 +23,6 @@ export class Game implements IGame {
       isGameAccepted: false,
     };
     this.movesLog = [];
+    this.isStarted = false;
   }
 }

@@ -15,6 +15,10 @@ import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
 import { Game } from '../game';
+import {
+  isUserParticipatingInGame,
+  isUserPlayingAsWhite,
+} from '../common/helpers';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -94,21 +98,27 @@ export class EventsGateway {
     @MessageBody('user') user: User | undefined,
     @ConnectedSocket() client: Socket,
   ): WsResponse<{ users: User[]; searchingForGameUsers: User[] }> {
-    const newUser = { socket: client, user };
-    const clientIndex = this.connectedClients.findIndex(
-      ({ socket }) => socket.id === client.id,
-    );
-    const isUserAlreadyConnected = clientIndex !== -1;
-    if (isUserAlreadyConnected) {
-      this.connectedClients[clientIndex] = newUser;
+    const targetClient = this.getConnectedClientBySocketId(client.id);
+    if (targetClient !== undefined) {
+      targetClient.user = user;
     } else {
-      this.connectedClients.push(newUser);
+      this.connectedClients.push({ socket: client, user });
     }
     const authenticatedUsers = this.getAuthenticatedUsers();
     if (user !== undefined) {
       this.sendMessageToAllClientsExceptOne(client.id, WsEvents.UpdateLobby, {
         users: authenticatedUsers,
       });
+      const activeGame = this.activeGames.find(
+        (g) =>
+          g.white.user.username === user.username ||
+          g.black.user.username === user.username,
+      );
+      if (activeGame !== undefined) {
+        this.sendMessageToClient(client.id, WsEvents.UpdateGame, {
+          game: activeGame,
+        });
+      }
     }
     return {
       event: WsEvents.UpdateLobby,
@@ -200,6 +210,82 @@ export class EventsGateway {
       data: {
         searchingForGameUsers: this.playersSearchingForGame,
       },
+    };
+  }
+
+  @SubscribeMessage(WsEvents.AcceptGame)
+  userAcceptedGame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody('gameId') gameId: string,
+  ): WsResponse<{ game?: Game }> | undefined {
+    const targetClient = this.getConnectedClientBySocketId(client.id);
+    const { user } = targetClient ?? {};
+    if (user === undefined) {
+      return;
+    }
+    const targetGame = this.activeGames.find((g) => g.id === gameId);
+    if (
+      targetGame === undefined ||
+      !isUserParticipatingInGame(targetGame, user)
+    ) {
+      return;
+    }
+
+    const isUserWhite = isUserPlayingAsWhite(targetGame, user);
+    targetGame[isUserWhite ? 'white' : 'black'].isGameAccepted = true;
+
+    const opponent = targetGame[isUserWhite ? 'black' : 'white'];
+    if (opponent.isGameAccepted) {
+      targetGame.isStarted = true;
+      const opponentClient = this.getConnectedClientByUsername(
+        opponent.user.username,
+      );
+      this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
+        game: targetGame,
+      });
+    }
+
+    return {
+      event: WsEvents.UpdateGame,
+      data: {
+        game: targetGame,
+      },
+    };
+  }
+
+  @SubscribeMessage(WsEvents.DeclineGame)
+  userDeclinedGame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody('gameId') gameId: string,
+  ): WsResponse<{ game?: Game }> | undefined {
+    const targetClient = this.getConnectedClientBySocketId(client.id);
+    const { user } = targetClient ?? {};
+    if (user === undefined) {
+      return;
+    }
+    const targetGame = this.activeGames.find((g) => g.id === gameId);
+    if (
+      targetGame === undefined ||
+      !isUserParticipatingInGame(targetGame, user)
+    ) {
+      return;
+    }
+
+    this.activeGames = this.activeGames.filter((g) => g.id !== targetGame.id);
+
+    const isUserWhite = isUserPlayingAsWhite(targetGame, user);
+    const opponent = targetGame[isUserWhite ? 'black' : 'white'];
+    const opponentClient = this.getConnectedClientByUsername(
+      opponent.user.username,
+    );
+    this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
+      game: undefined,
+      isDeclinedByOpponent: true,
+    });
+
+    return {
+      event: WsEvents.UpdateGame,
+      data: { game: undefined },
     };
   }
 }
