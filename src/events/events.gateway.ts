@@ -88,6 +88,30 @@ export class EventsGateway {
     );
   }
 
+  getUserAndTargetGame = (
+    socketId: string,
+    gameId: string,
+  ): { user: User; targetGame: Game; hasError: boolean } => {
+    let hasError = false;
+    const targetClient = this.getConnectedClientBySocketId(socketId);
+    const user = targetClient?.user as User;
+    if (user === undefined) {
+      hasError = true;
+    }
+    const targetGame = this.activeGames.find((g) => g.id === gameId) as Game;
+    if (
+      targetGame === undefined ||
+      !isUserParticipatingInGame(targetGame, user)
+    ) {
+      hasError = true;
+    }
+    return {
+      user,
+      targetGame,
+      hasError,
+    };
+  };
+
   @SubscribeMessage(WsEvents.Connect)
   handleConnection(@ConnectedSocket() client: Socket): void {
     this.connectedClients.push({ socket: client });
@@ -218,16 +242,11 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
-    const targetClient = this.getConnectedClientBySocketId(client.id);
-    const { user } = targetClient ?? {};
-    if (user === undefined) {
-      return;
-    }
-    const targetGame = this.activeGames.find((g) => g.id === gameId);
-    if (
-      targetGame === undefined ||
-      !isUserParticipatingInGame(targetGame, user)
-    ) {
+    const { user, targetGame, hasError } = this.getUserAndTargetGame(
+      client.id,
+      gameId,
+    );
+    if (hasError) {
       return;
     }
 
@@ -258,16 +277,11 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: Game }> | undefined {
-    const targetClient = this.getConnectedClientBySocketId(client.id);
-    const { user } = targetClient ?? {};
-    if (user === undefined) {
-      return;
-    }
-    const targetGame = this.activeGames.find((g) => g.id === gameId);
-    if (
-      targetGame === undefined ||
-      !isUserParticipatingInGame(targetGame, user)
-    ) {
+    const { user, targetGame, hasError } = this.getUserAndTargetGame(
+      client.id,
+      gameId,
+    );
+    if (hasError) {
       return;
     }
 
