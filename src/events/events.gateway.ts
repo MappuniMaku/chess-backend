@@ -12,6 +12,7 @@ import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
 import { Game } from '../game';
+import { IGame } from '../game/types';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 
 @WebSocketGateway({
@@ -97,6 +98,21 @@ export class EventsGateway {
     };
   };
 
+  removeDeclinedGame(game: Game): void {
+    const { id, white, black } = game;
+    this.activeGames = this.activeGames.filter((g) => g.id !== id);
+    const isGameDeclinedByWhite = !white.isGameAccepted;
+    const isGameDeclinedByBlack = !black.isGameAccepted;
+    [white, black].forEach((p, i) => {
+      const client = this.getConnectedClientByUsername(p.user.username);
+      this.sendMessageToClient(client?.socket.id, WsEvents.UpdateGame, {
+        game: undefined,
+        isDeclinedByOpponent:
+          p.isGameAccepted && (i === 0 ? isGameDeclinedByBlack : isGameDeclinedByWhite),
+      });
+    });
+  }
+
   @SubscribeMessage(WsEvents.Connect)
   handleConnection(@ConnectedSocket() client: Socket): void {
     this.connectedClients.push({ socket: client });
@@ -123,7 +139,7 @@ export class EventsGateway {
       );
       if (activeGame !== undefined) {
         this.sendMessageToClient(client.id, WsEvents.UpdateGame, {
-          game: activeGame,
+          game: activeGame.getPayloadData(),
         });
       }
     }
@@ -151,7 +167,7 @@ export class EventsGateway {
   @SubscribeMessage(WsEvents.StartSearching)
   userStartedSearching(
     @ConnectedSocket() client: Socket,
-  ): WsResponse<{ searchingForGameUsers?: User[]; game?: Game }> | undefined {
+  ): WsResponse<{ searchingForGameUsers?: User[]; game?: IGame }> | undefined {
     const targetClient = this.getConnectedClientBySocketId(client.id);
     const { user } = targetClient ?? {};
     if (
@@ -177,7 +193,11 @@ export class EventsGateway {
     this.playersSearchingForGame = this.playersSearchingForGame.filter(
       (p) => p.username !== opponent.username,
     );
-    const newGame = new Game({ user1: user, user2: opponent });
+    const newGame = new Game({
+      user1: user,
+      user2: opponent,
+      acceptTimeoutCallback: this.removeDeclinedGame.bind(this),
+    });
     this.activeGames.push(newGame);
 
     const opponentClient = this.getConnectedClientByUsername(opponent.username);
@@ -185,12 +205,12 @@ export class EventsGateway {
       searchingForGameUsers: this.playersSearchingForGame,
     });
     this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
-      game: newGame,
+      game: newGame.getPayloadData(),
     });
     return {
       event: WsEvents.UpdateGame,
       data: {
-        game: newGame,
+        game: newGame.getPayloadData(),
       },
     };
   }
@@ -225,7 +245,7 @@ export class EventsGateway {
   userAcceptedGame(
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
-  ): WsResponse<{ game?: Game }> | undefined {
+  ): WsResponse<{ game?: IGame }> | undefined {
     const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError || targetGame.isStarted) {
       return;
@@ -243,14 +263,14 @@ export class EventsGateway {
       targetGame.isStarted = true;
       const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
       this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
-        game: targetGame,
+        game: targetGame.getPayloadData(),
       });
     }
 
     return {
       event: WsEvents.UpdateGame,
       data: {
-        game: targetGame,
+        game: targetGame.getPayloadData(),
       },
     };
   }
@@ -259,12 +279,13 @@ export class EventsGateway {
   userDeclinedGame(
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
-  ): WsResponse<{ game?: Game }> | undefined {
+  ): WsResponse<{ game: undefined }> | undefined {
     const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError || targetGame.isStarted || !this.activeGames.some((g) => g.id === gameId)) {
       return;
     }
 
+    targetGame.clearIntervals();
     this.activeGames = this.activeGames.filter((g) => g.id !== targetGame.id);
 
     const isUserWhite = isUserPlayingAsWhite(targetGame, user);

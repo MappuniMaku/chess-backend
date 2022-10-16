@@ -1,0 +1,1 @@
+export const CONFIRM_GAME_TIME_LIMIT = 21;
