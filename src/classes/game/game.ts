@@ -45,7 +45,7 @@ export class Game implements IGame {
         }
         this.acceptanceStatus.secondsLeft -= 1;
         if (this.acceptanceStatus.secondsLeft === 0) {
-          this.clearIntervals();
+          this.clearAcceptInterval();
           acceptTimeoutCallback(this);
         }
       }, 1000),
@@ -66,10 +66,15 @@ export class Game implements IGame {
     };
   }
 
-  clearIntervals(): void {
+  clearAcceptInterval(): void {
     if (this.acceptanceStatus?.interval !== undefined) {
       clearInterval(this.acceptanceStatus.interval);
       this.acceptanceStatus.interval = undefined;
     }
+  }
+
+  start(): void {
+    this.clearAcceptInterval();
+    this.isStarted = true;
   }
 }

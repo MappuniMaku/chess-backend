@@ -308,7 +308,7 @@ export class EventsGateway {
 
     const opponent = targetGame[isUserWhite ? 'black' : 'white'];
     if (opponent.isGameAccepted) {
-      targetGame.isStarted = true;
+      targetGame.start();
       const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
       this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
         game: targetGame.getPayloadData(),
@@ -333,7 +333,7 @@ export class EventsGateway {
       return;
     }
 
-    targetGame.clearIntervals();
+    targetGame.clearAcceptInterval();
     this.activeGames = this.activeGames.filter((g) => g.id !== targetGame.id);
     this.banUserFromSearch(user);
 
