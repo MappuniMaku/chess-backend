@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import { IGame, IMove, IPlayer } from './types';
+import {IGame, IGameResult, IMove, IPlayer} from './types';
 import { User } from '../../users/schemas';
 import { get50PercentRandomResult } from '../../common/helpers';
 import { CONFIRM_GAME_TIME_LIMIT } from './constants';
@@ -15,6 +15,7 @@ export class Game implements IGame {
     secondsLeft: number;
     interval?: ReturnType<typeof setInterval>;
   };
+  result?: IGameResult;
 
   constructor({
     user1,
@@ -76,5 +77,9 @@ export class Game implements IGame {
   start(): void {
     this.clearAcceptInterval();
     this.isStarted = true;
+  }
+
+  addMove(move: IMove): void {
+    this.movesLog.push(move);
   }
 }

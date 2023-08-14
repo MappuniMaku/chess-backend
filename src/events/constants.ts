@@ -8,6 +8,7 @@ export enum WsEvents {
   UpdateGame = 'update-game',
   AcceptGame = 'accept-game',
   DeclineGame = 'decline-game',
+  MakeMove = 'make-move',
 }
 
 export const MAX_OPPONENTS_RATING_DIFFERENCE = 500;

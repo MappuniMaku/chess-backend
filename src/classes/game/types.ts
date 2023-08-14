@@ -19,12 +19,8 @@ export interface IPiecePosition {
 
 export interface IMove {
   piece: IPiece;
-  initialPosition: IPiecePosition;
   finalPosition: IPiecePosition;
-  wasCaptureMade?: boolean;
-  castlingType?: string;
   selectedPieceTypeToTransform?: string;
-  wasCheckMade?: boolean;
   isMate?: boolean;
   isStalemate?: boolean;
 }
@@ -40,3 +36,5 @@ export interface IGame {
     interval?: ReturnType<typeof setInterval>;
   };
 }
+
+export type IGameResult = 'whiteWin' | 'blackWin' | 'draw';

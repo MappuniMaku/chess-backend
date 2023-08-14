@@ -11,7 +11,7 @@ import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from '../cons
 import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
-import { BannedPlayer, Game, IBannedPlayer, IGame } from '../classes';
+import {BannedPlayer, Game, IBannedPlayer, IGame, IMove, IPlayer} from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 
 @WebSocketGateway({
@@ -80,7 +80,7 @@ export class EventsGateway {
   getUserAndTargetGame = (
     socketId: string,
     gameId: string,
-  ): { user: User; targetGame: Game; hasError: boolean } => {
+  ): { user: User; targetGame: Game; hasError: boolean; currentPlayer: IPlayer; opponentPlayer: IPlayer } => {
     let hasError = false;
     const targetClient = this.getConnectedClientBySocketId(socketId);
     const user = targetClient?.user as User;
@@ -91,10 +91,14 @@ export class EventsGateway {
     if (targetGame === undefined || !isUserParticipatingInGame(targetGame, user)) {
       hasError = true;
     }
+
+    const isUserWhite = isUserPlayingAsWhite(targetGame, user);
     return {
       user,
       targetGame,
       hasError,
+      currentPlayer: targetGame?.[isUserWhite ? 'white' : 'black'],
+      opponentPlayer: targetGame?.[isUserWhite ? 'black' : 'white'],
     };
   };
 
@@ -293,23 +297,20 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: IGame }> | undefined {
-    const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
+    const { user, targetGame, hasError, currentPlayer, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError || targetGame.isStarted) {
       return;
     }
 
     this.unbanUserFromSearchIfNecessary(user);
-    const isUserWhite = isUserPlayingAsWhite(targetGame, user);
-    const currentPlayer = targetGame[isUserWhite ? 'white' : 'black'];
     if (currentPlayer.isGameAccepted) {
       return;
     }
     currentPlayer.isGameAccepted = true;
 
-    const opponent = targetGame[isUserWhite ? 'black' : 'white'];
-    if (opponent.isGameAccepted) {
+    if (opponentPlayer.isGameAccepted) {
       targetGame.start();
-      const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
+      const opponentClient = this.getConnectedClientByUsername(opponentPlayer.user.username);
       this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
         game: targetGame.getPayloadData(),
       });
@@ -328,7 +329,7 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game: undefined }> | undefined {
-    const { user, targetGame, hasError } = this.getUserAndTargetGame(client.id, gameId);
+    const { user, targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
     if (hasError || targetGame.isStarted || !this.activeGames.some((g) => g.id === gameId)) {
       return;
     }
@@ -337,9 +338,7 @@ export class EventsGateway {
     this.activeGames = this.activeGames.filter((g) => g.id !== targetGame.id);
     this.banUserFromSearch(user);
 
-    const isUserWhite = isUserPlayingAsWhite(targetGame, user);
-    const opponent = targetGame[isUserWhite ? 'black' : 'white'];
-    const opponentClient = this.getConnectedClientByUsername(opponent.user.username);
+    const opponentClient = this.getConnectedClientByUsername(opponentPlayer.user.username);
     this.sendMessageToClient(opponentClient?.socket.id, WsEvents.UpdateGame, {
       game: undefined,
       isDeclinedByOpponent: true,
@@ -348,6 +347,36 @@ export class EventsGateway {
     return {
       event: WsEvents.UpdateGame,
       data: { game: undefined },
+    };
+  }
+
+  @SubscribeMessage(WsEvents.MakeMove)
+  makeMove(
+    @ConnectedSocket() client: Socket,
+    @MessageBody('gameId') gameId: string,
+    @MessageBody('move') move: IMove,
+  ): WsResponse<{ game: IGame }> | undefined {
+    const { targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
+
+    if (hasError || targetGame.result !== undefined) {
+      return;
+    }
+
+    // TODO: can check validity of the move here
+    targetGame.addMove(move);
+
+    const gamePayload = targetGame.getPayloadData();
+
+    const opponentClient = this.getConnectedClientByUsername(opponentPlayer.user.username);
+    this.sendMessageToClient(opponentClient?.socket.id, WsEvents.MakeMove, {
+      game: gamePayload,
+    });
+
+    return {
+      event: WsEvents.MakeMove,
+      data: {
+        game: gamePayload,
+      },
     };
   }
 }
