@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import {IGame, IGameResult, IMove, IPlayer} from './types';
+import { IGame, IGameResult, IMove, IPlayer } from './types';
 import { User } from '../../users/schemas';
 import { get50PercentRandomResult } from '../../common/helpers';
 import { CONFIRM_GAME_TIME_LIMIT } from './constants';

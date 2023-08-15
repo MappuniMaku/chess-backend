@@ -11,7 +11,7 @@ import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from '../cons
 import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
-import {BannedPlayer, Game, IBannedPlayer, IGame, IMove, IPlayer} from '../classes';
+import { BannedPlayer, Game, IBannedPlayer, IGame, IMove, IPlayer } from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 
 @WebSocketGateway({
@@ -80,7 +80,13 @@ export class EventsGateway {
   getUserAndTargetGame = (
     socketId: string,
     gameId: string,
-  ): { user: User; targetGame: Game; hasError: boolean; currentPlayer: IPlayer; opponentPlayer: IPlayer } => {
+  ): {
+    user: User;
+    targetGame: Game;
+    hasError: boolean;
+    currentPlayer: IPlayer;
+    opponentPlayer: IPlayer;
+  } => {
     let hasError = false;
     const targetClient = this.getConnectedClientBySocketId(socketId);
     const user = targetClient?.user as User;
@@ -297,7 +303,10 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game?: IGame }> | undefined {
-    const { user, targetGame, hasError, currentPlayer, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
+    const { user, targetGame, hasError, currentPlayer, opponentPlayer } = this.getUserAndTargetGame(
+      client.id,
+      gameId,
+    );
     if (hasError || targetGame.isStarted) {
       return;
     }
@@ -329,7 +338,10 @@ export class EventsGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
   ): WsResponse<{ game: undefined }> | undefined {
-    const { user, targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
+    const { user, targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(
+      client.id,
+      gameId,
+    );
     if (hasError || targetGame.isStarted || !this.activeGames.some((g) => g.id === gameId)) {
       return;
     }
