@@ -5,10 +5,21 @@ export interface IPlayer {
   isGameAccepted: boolean;
 }
 
+export enum PieceColor {
+  White = 'white',
+  Black = 'black',
+}
+
+export enum GameResult {
+  WhiteWin = 'whiteWin',
+  BlackWin = 'blackWin',
+  Draw = 'draw',
+}
+
 export interface IPiece {
   id: number;
   type: string;
-  color: string;
+  color: PieceColor;
   hasMadeAnyMoves: boolean;
 }
 
@@ -37,4 +48,10 @@ export interface IGame {
   };
 }
 
-export type IGameResult = 'whiteWin' | 'blackWin' | 'draw';
+export interface IGameHistory {
+  id: string;
+  black: IPlayer;
+  white: IPlayer;
+  movesLog: IMove[];
+  result: GameResult;
+}

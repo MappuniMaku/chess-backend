@@ -11,8 +11,18 @@ import { LOCALHOST_FRONTEND_ADDRESS, PRODUCTION_FRONTEND_ADDRESS } from '../cons
 import { MAX_OPPONENTS_RATING_DIFFERENCE, WsEvents } from './constants';
 import { User } from '../users/schemas';
 import { IConnectedClient, IWsEventData } from './types';
-import { BannedPlayer, Game, IBannedPlayer, IGame, IMove, IPlayer } from '../classes';
+import {
+  BannedPlayer,
+  Game,
+  GameResult,
+  IBannedPlayer,
+  IGame,
+  IMove,
+  IPlayer,
+  PieceColor,
+} from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
+import { BadRequestException } from '@nestjs/common';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -108,9 +118,13 @@ export class EventsGateway {
     };
   };
 
+  removeGameFromActiveGames(gameId: string): void {
+    this.activeGames = this.activeGames.filter((g) => g.id !== gameId);
+  }
+
   removeDeclinedGame(game: Game): void {
     const { id, white, black } = game;
-    this.activeGames = this.activeGames.filter((g) => g.id !== id);
+    this.removeGameFromActiveGames(id);
     const isGameDeclinedByWhite = !white.isGameAccepted;
     const isGameDeclinedByBlack = !black.isGameAccepted;
     [white, black].forEach((p, i) => {
@@ -166,6 +180,31 @@ export class EventsGateway {
       (u) => u.user.username !== user.username,
     );
     this.sendInfoAboutBannedUsers();
+  }
+
+  handleGameResult(game: Game, lastMove: IMove): void {
+    const { isMate, isStalemate, piece } = lastMove;
+
+    if (!isMate && !isStalemate) {
+      throw new BadRequestException('handleGameResult(): no result in the last move');
+    }
+
+    const lastMoveColor = piece.color;
+
+    const resultsMap: Record<PieceColor, GameResult> = {
+      [PieceColor.White]: GameResult.WhiteWin,
+      [PieceColor.Black]: GameResult.BlackWin,
+    };
+
+    game.setResult(isMate ? resultsMap[lastMoveColor] : GameResult.Draw);
+
+    this.saveGameResult(game);
+    this.removeGameFromActiveGames(game.id);
+  }
+
+  saveGameResult(game: Game): void {
+    const data = game.getHistoryData();
+    // TODO: save game to DB and update players elo
   }
 
   @SubscribeMessage(WsEvents.Connect)
@@ -371,11 +410,15 @@ export class EventsGateway {
     const { targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
 
     if (hasError || targetGame.result !== undefined) {
-      return;
+      throw new BadRequestException('makeMove(): tried to make move for ended game');
     }
 
     // TODO: can check validity of the move here
     targetGame.addMove(move);
+
+    if (move.isMate || move.isStalemate) {
+      this.handleGameResult(targetGame, move);
+    }
 
     const gamePayload = targetGame.getPayloadData();
 

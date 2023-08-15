@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import { IGame, IGameResult, IMove, IPlayer } from './types';
+import { IGame, GameResult, IMove, IPlayer, IGameHistory } from './types';
 import { User } from '../../users/schemas';
 import { get50PercentRandomResult } from '../../common/helpers';
 import { CONFIRM_GAME_TIME_LIMIT } from './constants';
@@ -15,7 +15,7 @@ export class Game implements IGame {
     secondsLeft: number;
     interval?: ReturnType<typeof setInterval>;
   };
-  result?: IGameResult;
+  result?: GameResult;
 
   constructor({
     user1,
@@ -67,6 +67,16 @@ export class Game implements IGame {
     };
   }
 
+  getHistoryData(): IGameHistory {
+    return {
+      id: this.id,
+      black: this.black,
+      white: this.white,
+      movesLog: this.movesLog,
+      result: this.result as GameResult,
+    };
+  }
+
   clearAcceptInterval(): void {
     if (this.acceptanceStatus?.interval !== undefined) {
       clearInterval(this.acceptanceStatus.interval);
@@ -81,5 +91,9 @@ export class Game implements IGame {
 
   addMove(move: IMove): void {
     this.movesLog.push(move);
+  }
+
+  setResult(result: GameResult): void {
+    this.result = result;
   }
 }
