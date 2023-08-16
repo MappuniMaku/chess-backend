@@ -70,8 +70,9 @@ export class Game implements IGame {
   getHistoryData(): IGameHistory {
     return {
       id: this.id,
-      black: this.black,
-      white: this.white,
+      date: new Date().toISOString(),
+      black: this.black.user.username,
+      white: this.white.user.username,
       movesLog: this.movesLog,
       result: this.result as GameResult,
     };

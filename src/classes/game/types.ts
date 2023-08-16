@@ -50,8 +50,9 @@ export interface IGame {
 
 export interface IGameHistory {
   id: string;
-  black: IPlayer;
-  white: IPlayer;
+  date: string;
+  black: string;
+  white: string;
   movesLog: IMove[];
   result: GameResult;
 }

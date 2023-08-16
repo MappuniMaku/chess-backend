@@ -23,6 +23,7 @@ import {
 } from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
 import { BadRequestException } from '@nestjs/common';
+import { GamesService } from '../games/games.service';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -32,6 +33,8 @@ import { BadRequestException } from '@nestjs/common';
       : PRODUCTION_FRONTEND_ADDRESS,
 })
 export class EventsGateway {
+  constructor(private gamesService: GamesService) {}
+
   connectedClients: IConnectedClient[] = [];
   playersSearchingForGame: User[] = [];
   activeGames: Game[] = [];
@@ -204,7 +207,7 @@ export class EventsGateway {
 
   saveGameResult(game: Game): void {
     const data = game.getHistoryData();
-    // TODO: save game to DB and update players elo
+    this.gamesService.save(data);
   }
 
   @SubscribeMessage(WsEvents.Connect)
