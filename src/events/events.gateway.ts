@@ -420,11 +420,11 @@ export class EventsGateway {
   }
 
   @SubscribeMessage(WsEvents.MakeMove)
-  makeMove(
+  async makeMove(
     @ConnectedSocket() client: Socket,
     @MessageBody('gameId') gameId: string,
     @MessageBody('move') move: IMove,
-  ): WsResponse<{ game: IGame }> | undefined {
+  ): Promise<WsResponse<{ game: IGame }> | undefined> {
     const { targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
 
     if (hasError || targetGame.result !== undefined) {
@@ -436,7 +436,7 @@ export class EventsGateway {
     targetGame.addMove(move);
 
     if (move.isMate || move.isStalemate) {
-      this.handleGameResult(targetGame, move);
+      await this.handleGameResult(targetGame, move);
     }
 
     const gamePayload = targetGame.getPayloadData();
