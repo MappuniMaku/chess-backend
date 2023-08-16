@@ -11,4 +11,5 @@ export enum WsEvents {
   MakeMove = 'make-move',
 }
 
-export const MAX_OPPONENTS_RATING_DIFFERENCE = 500;
+// TODO: set this back
+export const MAX_OPPONENTS_RATING_DIFFERENCE = Infinity;
