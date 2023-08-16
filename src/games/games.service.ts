@@ -12,14 +12,10 @@ export class GamesService {
   ) {}
 
   async getAll(user: any): Promise<Game[]> {
-    const gamesAsBlack = await this.gameModel.find(
-      { black: { $regex: user.username ?? '' } },
-      { __v: 0, _id: 0 },
-    );
-    const gamesAsWhite = await this.gameModel.find(
-      { white: { $regex: user.username ?? '' } },
-      { __v: 0, _id: 0 },
-    );
+    const [gamesAsBlack, gamesAsWhite] = await Promise.all([
+      this.gameModel.find({ black: { $regex: user.username ?? '' } }, { __v: 0, _id: 0 }),
+      this.gameModel.find({ white: { $regex: user.username ?? '' } }, { __v: 0, _id: 0 }),
+    ]);
     return [...gamesAsBlack, ...gamesAsWhite].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
