@@ -12,6 +12,12 @@ export class User {
   rating: number;
 
   @Prop()
+  initialRating: number;
+
+  @Prop()
+  createdAt: string;
+
+  @Prop()
   password?: string;
 }
 

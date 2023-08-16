@@ -75,14 +75,21 @@ export class UsersService {
       throw new ValidationError({ username: 'isNotUnique' });
     }
     const hashedPassword = await hashPassword(password);
+    const initialRating = rating;
+    const createdAt = new Date().toISOString();
+
     const newUser = new this.userModel({
       ...userDto,
+      initialRating,
+      createdAt,
       password: hashedPassword,
     });
     await newUser.save();
     return {
       username,
       rating,
+      initialRating,
+      createdAt,
     };
   }
 
