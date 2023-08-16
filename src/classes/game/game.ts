@@ -1,14 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import { IGame, GameResult, IMove, IPlayer, IGameHistory } from './types';
+import { GameResult, IGame, IGameHistory, IMove, IPlayer, IRatingChange } from './types';
 import { User } from '../../users/schemas';
 import { get50PercentRandomResult } from '../../common/helpers';
 import { CONFIRM_GAME_TIME_LIMIT } from './constants';
 
 export class Game implements IGame {
   id: string;
-  black: IPlayer;
   white: IPlayer;
+  black: IPlayer;
   movesLog: IMove[];
   isStarted: boolean;
   acceptanceStatus?: {
@@ -16,6 +16,7 @@ export class Game implements IGame {
     interval?: ReturnType<typeof setInterval>;
   };
   result?: GameResult;
+  ratingChange?: IRatingChange;
 
   constructor({
     user1,
@@ -75,6 +76,7 @@ export class Game implements IGame {
       white: this.white.user.username,
       movesLog: this.movesLog,
       result: this.result as GameResult,
+      ratingChange: this.ratingChange as IRatingChange,
     };
   }
 
@@ -96,5 +98,15 @@ export class Game implements IGame {
 
   setResult(result: GameResult): void {
     this.result = result;
+    this.ratingChange =
+      result === GameResult.Draw
+        ? {
+            white: 0,
+            black: 0,
+          }
+        : {
+            white: result === GameResult.WhiteWin ? 25 : -25,
+            black: result === GameResult.BlackWin ? 25 : -25,
+          };
   }
 }

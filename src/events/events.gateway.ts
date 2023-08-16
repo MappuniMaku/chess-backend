@@ -22,8 +22,8 @@ import {
   PieceColor,
 } from '../classes';
 import { isUserParticipatingInGame, isUserPlayingAsWhite } from '../common/helpers';
-import { BadRequestException } from '@nestjs/common';
 import { GamesService } from '../games/games.service';
+import { UsersService } from '../users/users.service';
 
 @WebSocketGateway({
   transports: ['websocket'],
@@ -33,7 +33,7 @@ import { GamesService } from '../games/games.service';
       : PRODUCTION_FRONTEND_ADDRESS,
 })
 export class EventsGateway {
-  constructor(private gamesService: GamesService) {}
+  constructor(private gamesService: GamesService, private usersService: UsersService) {}
 
   connectedClients: IConnectedClient[] = [];
   playersSearchingForGame: User[] = [];
@@ -185,11 +185,12 @@ export class EventsGateway {
     this.sendInfoAboutBannedUsers();
   }
 
-  handleGameResult(game: Game, lastMove: IMove): void {
+  async handleGameResult(game: Game, lastMove: IMove): Promise<void> {
     const { isMate, isStalemate, piece } = lastMove;
 
     if (!isMate && !isStalemate) {
-      throw new BadRequestException('handleGameResult(): no result in the last move');
+      console.error('handleGameResult(): no result in the last move');
+      return;
     }
 
     const lastMoveColor = piece.color;
@@ -199,9 +200,23 @@ export class EventsGateway {
       [PieceColor.Black]: GameResult.BlackWin,
     };
 
-    game.setResult(isMate ? resultsMap[lastMoveColor] : GameResult.Draw);
+    const result = isMate ? resultsMap[lastMoveColor] : GameResult.Draw;
+
+    game.setResult(result);
 
     this.saveGameResult(game);
+    if (result !== GameResult.Draw) {
+      await Promise.allSettled([
+        this.usersService.updateRating(
+          game.white.user.username,
+          game.ratingChange?.white as number,
+        ),
+        this.usersService.updateRating(
+          game.black.user.username,
+          game.ratingChange?.black as number,
+        ),
+      ]);
+    }
     this.removeGameFromActiveGames(game.id);
   }
 
@@ -413,7 +428,8 @@ export class EventsGateway {
     const { targetGame, hasError, opponentPlayer } = this.getUserAndTargetGame(client.id, gameId);
 
     if (hasError || targetGame.result !== undefined) {
-      throw new BadRequestException('makeMove(): tried to make move for ended game');
+      console.error('makeMove(): tried to make move for ended game');
+      return;
     }
 
     // TODO: can check validity of the move here

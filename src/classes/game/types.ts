@@ -48,6 +48,11 @@ export interface IGame {
   };
 }
 
+export interface IRatingChange {
+  black: number;
+  white: number;
+}
+
 export interface IGameHistory {
   id: string;
   date: string;
@@ -55,4 +60,5 @@ export interface IGameHistory {
   white: string;
   movesLog: IMove[];
   result: GameResult;
+  ratingChange: IRatingChange;
 }

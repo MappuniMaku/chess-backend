@@ -1,7 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-import { GameResult, IGameHistory, IMove, IPiece, IPiecePosition, PieceColor } from '../../classes';
+import {
+  GameResult,
+  IGameHistory,
+  IMove,
+  IPiece,
+  IPiecePosition,
+  IRatingChange,
+  PieceColor,
+} from '../../classes';
 
 export type GameDocument = Game & Document;
 
@@ -48,6 +56,15 @@ class Move implements IMove {
 }
 
 @Schema()
+class RatingChange implements IRatingChange {
+  @Prop()
+  white: number;
+
+  @Prop()
+  black: number;
+}
+
+@Schema()
 export class Game implements IGameHistory {
   @Prop()
   id: string;
@@ -66,6 +83,9 @@ export class Game implements IGameHistory {
 
   @Prop()
   result: GameResult;
+
+  @Prop()
+  ratingChange: RatingChange;
 }
 
 export const GameSchema = SchemaFactory.createForClass(Game);

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -84,5 +84,14 @@ export class UsersService {
       username,
       rating,
     };
+  }
+
+  async updateRating(username: string, ratingChange: number): Promise<void> {
+    const targetUser = await this.userModel.findOne({ username });
+    if (targetUser === null) {
+      throw new NotFoundException();
+    }
+    targetUser.rating = targetUser.rating + ratingChange;
+    await targetUser.save();
   }
 }
