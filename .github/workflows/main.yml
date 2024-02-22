@@ -24,4 +24,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/my-stocks-backend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/chess-backend:latest
